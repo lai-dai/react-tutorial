@@ -36,7 +36,8 @@ const config = {
           "attributes": false
         }
       }
-    ]
+    ],
+    "import/no-anonymous-default-export": "off"
   }
 }
 module.exports = config;
