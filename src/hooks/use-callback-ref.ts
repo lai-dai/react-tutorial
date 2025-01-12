@@ -1,17 +1,19 @@
 import React from "react";
 
-export function useCallbackRef<T extends (...args: unknown[]) => unknown>(
-  callback: T | undefined,
-): T {
-  const callbackRef = React.useRef(callback);
+export function useCallbackRef<Args extends unknown[], Return>(
+  callback?: ((...args: Args) => Return),
+) {
+  const callbackRef = React.useRef<typeof callback>(callback);
 
-  React.useEffect(() => {
+  React.useInsertionEffect(() => {
     callbackRef.current = callback;
   });
 
   // https://github.com/facebook/react/issues/19240
   return React.useMemo(
-    () => ((...args) => callbackRef.current?.(...args)) as T,
+    () =>
+      (...args: Args) =>
+        callbackRef.current?.(...args),
     [],
   );
 }

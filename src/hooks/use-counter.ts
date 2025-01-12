@@ -1,57 +1,74 @@
 import React from "react";
+import { useControllableState } from "~/hooks/use-controllable-state";
 import { useLazyRef } from "~/hooks/use-lazy-ref";
 
 type Value = number;
 
-function resolveHookState<S, C extends S>(nextState: S, currentState?: C): S {
-  if (nextState instanceof Function) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-    return (nextState.length ? nextState(currentState) : nextState()) as S;
-  }
+export type UseCounterProps = {
+  defaultValue?: Value | (() => Value);
+  max?: number;
+  min?: number;
+  onValueChange?: (state: Value) => void;
+  shouldUpdate?: (prev: Value, next: Value) => boolean;
+  value?: Value;
+};
 
-  return nextState;
-}
-
-export function useCounter(
-  initialValue: Value | (() => Value) = 0,
-  options?: { min?: number; max?: number },
-): [
+export type UseCounterReturn = [
   Value,
   {
-    set: React.Dispatch<React.SetStateAction<Value>>;
-    inc: (delta?: React.SetStateAction<Value>) => void;
     dec: (delta?: React.SetStateAction<Value>) => void;
+    inc: (delta?: React.SetStateAction<Value>) => void;
     reset: (value: React.SetStateAction<Value>) => void;
+    set: React.Dispatch<React.SetStateAction<Value>>;
   },
-] {
-  const initRef = useLazyRef(resolveHookState(initialValue));
-  const { min, max } = options ?? {};
+];
+
+export function useCounter(props: UseCounterProps): UseCounterReturn {
+  const {
+    min,
+    max,
+    defaultValue = 0,
+    onValueChange,
+    shouldUpdate,
+    value,
+  } = props ?? {};
+
+  const defaultValueRef = useLazyRef(() => {
+    const setter = defaultValue as () => Value;
+    return defaultValue instanceof Function ? setter() : defaultValue;
+  });
 
   if (typeof min === "number") {
-    initRef.current = Math.max(initRef.current, min);
+    defaultValueRef.current = Math.max(defaultValueRef.current, min);
   }
 
   if (typeof max === "number") {
-    initRef.current = Math.min(initRef.current, max);
+    defaultValueRef.current = Math.min(defaultValueRef.current, max);
   }
 
-  const [state, setState] = React.useState(initRef.current);
+  const [state, setState] = useControllableState({
+    defaultProp: defaultValueRef.current,
+    onChange: onValueChange,
+    prop: value,
+    shouldUpdate,
+  });
 
   const actions = React.useMemo(() => {
-    const set: React.Dispatch<React.SetStateAction<Value>> = (newState) => {
+    const set = (next: React.SetStateAction<Value>) => {
       const prevState = state;
-      let rState = resolveHookState(newState, prevState) as Value;
+      const setter = next as (prevState?: Value) => Value;
+      let nextValue = next instanceof Function ? setter(prevState) : next;
 
-      if (prevState !== rState) {
+      if (prevState !== nextValue) {
         if (typeof min === "number") {
-          rState = Math.max(rState, min);
+          nextValue = Math.max(nextValue, min);
         }
         if (typeof max === "number") {
-          rState = Math.min(rState, max);
+          nextValue = Math.min(nextValue, max);
         }
 
-        if (prevState !== rState) {
-          setState(rState);
+        if (prevState !== nextValue) {
+          setState(nextValue);
         }
       }
     };
@@ -63,6 +80,7 @@ export function useCounter(
         const rDelta = delta instanceof Function ? delta(prevState) : delta;
 
         if (typeof rDelta !== "number") {
+          // eslint-disable-next-line no-console
           console.error(
             "delta has to be a number or function returning a number, got " +
               typeof rDelta,
@@ -76,6 +94,7 @@ export function useCounter(
         const rDelta = delta instanceof Function ? delta(prevState) : delta;
 
         if (typeof rDelta !== "number") {
+          // eslint-disable-next-line no-console
           console.error(
             "delta has to be a number or function returning a number, got " +
               typeof rDelta,
@@ -87,20 +106,23 @@ export function useCounter(
       reset: (value: React.SetStateAction<Value>) => {
         const prevState = state;
         const rValue =
-          value instanceof Function ? value(prevState) : (value ?? initRef);
+          value instanceof Function
+            ? value(prevState)
+            : (value ?? defaultValueRef);
 
         if (typeof rValue !== "number") {
+          // eslint-disable-next-line no-console
           console.error(
             "value has to be a number or function returning a number, got " +
               typeof rValue,
           );
         }
 
-        initRef.current = rValue;
+        defaultValueRef.current = rValue;
         set(rValue);
       },
     };
-  }, [initRef, max, min, state]);
+  }, [defaultValueRef, max, min, setState, state]);
 
   return [state, actions];
 }

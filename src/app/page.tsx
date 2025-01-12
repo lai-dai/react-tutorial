@@ -6,6 +6,12 @@ export default function HomePage() {
       <div>
         <Link href={'/rerender-component'}>Rerender-component</Link>
       </div>
+      <div>
+        <Link href={'/url-params'}>url-params</Link>
+      </div>
+      <div>
+        <Link href={'/controllable-state'}>controllable-state</Link>
+      </div>
     </main>
   );
 }
